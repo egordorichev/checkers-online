@@ -1,7 +1,3 @@
-/*
- * TODO: queens
- */
-
 var width, height, boardSize, boardX, boardY, cellSize, board
 var turn = 0
 var ids = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=" ]
@@ -9,6 +5,10 @@ var letters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", 
 var num = [ 12, 12 ]
 var hist = []
 var historyDiv
+var peer, conn
+var serve = false
+var won = -1
+var g
 
 function setup() {
 	historyDiv = document.getElementById("history")
@@ -36,30 +36,139 @@ function setup() {
 	cellSize = boardSize / 8
 	board = []
 
+
+	var gt = {},
+	args = location.search.substr(1).split(/&/);
+	
+	for (var i = 0; i < args.length; i++) {
+		var tmp = args[i].split(/=/);
+		
+		if (tmp[0] != "") {
+			gt[decodeURIComponent(tmp[0])] = decodeURIComponent(tmp.slice(1).join("").replace("+", " "));
+		}
+	}
+
+	g = gt
+
+  peer = new Peer(gt.i || "null", {host: 'localhost', port: 9000, path: '/'});
+
+	peer.on('open', function(id) {
+		console.log('My peer ID is: ' + id);
+	});
+
+	if (gt.c) {
+		serve = true
+		conn = peer.connect(gt.c);
+		setupCon(gt)
+	}
+
+	peer.on('connection', function(c) {
+		conn = c
+		console.log('Connected to ' + c.id)
+		setupCon(gt)
+		resetBoard()
+	});
+
+	createCanvas(boardSize, boardSize);
+}
+
+var selfType = -1
+
+function resetBoard() {
+	selfType = -1
+	won = -1
+	lastId = null
+	lastChoice = null
+
 	for (var x = 0; x < 8; x++) {
 		board[x] = []
 
 		for (var y = 0; y < 8; y++) {
 			if ((x + y) % 2 == 0 && (y < 3 || y > 4)) {
-				board[x][y] = y > 4 ? 1 : 2
+				board[x][y] = y > 4 ? 3 : 2 // fixme 1 : 2
 			} else {
 				board[x][y] = 0
 			}
 		}
 	}
 
-	createCanvas(boardSize, boardSize);
+	hist = []
+	updateHistory()
+
+	if (conn != null) {
+		selectTurn()
+	}
+}
+
+function setupCon() {
+	resetBoard()
+
+	conn.on('data', function(data) {
+		if (data.charAt(0) == "k") {
+			key = data.substr(1, data.length)
+			keyPressed(false, true)
+		} else if (data.charAt(0) == "s") {
+			selfType = data.indexOf("w") != -1 ? 0 : 1
+			console.log("You play as " + (selfType == 0 ? "white" : "black"))
+			updateHistory()
+		} else if (data == "r") {
+			resetBoard()
+		} else {
+			console.error("Unknown message " + data)
+		}
+	});
+
+	conn.on("open", function(data) {
+		if (serve) {
+			selectTurn()
+
+			console.log('Connected to ' + g.c)
+			resetBoard()
+		}
+	})
 }
 
 var lastId
 var lastChoice
 
-function keyPressed() {
+function selectTurn() {
+	selfType = Math.random() > 0.5 ? 0 : 1	
+
+	if (g.w) {
+		selfType = 0
+	} else if (g.b) {
+		sefType = 1
+	} 
+
+	console.log("You play as " + (selfType == 0 ? "white" : "black"))
+	conn.send("s" + (selfType == 0 ? "b" : "w"))
+	updateHistory()
+}
+
+function keyPressed(k, t) {	
+	if (won != -1 && key == "r") {
+		conn.send("r")
+		resetBoard()
+		return
+	}
+
+	if (turn != selfType && !t) {
+		return
+	}
+
 	if (key >= "a" && key <= "z") {
 		lastChoice = key
-	} else {
+
+		if (conn && !t) {
+			conn.send("k" + key)
+		}
+	} else if (key >= "0" && key <= "9" || key == "=" || key == "-") {
 		lastChoice = null
 		lastId = key
+
+		if (conn && !t) {
+			conn.send("k" + key)
+		}
 	}
 }
 
@@ -67,6 +176,11 @@ var important
 
 function draw() {
 	clear()
+
+	if (!conn) {
+		return
+	}
+
 	noStroke()
 	var id = 0
 	var xx = -1
@@ -78,7 +192,7 @@ function draw() {
 		for (var x = 0; x < 8; x++) {
 			board[x][y] = Math.abs(board[x][y])
 
-			if (board[x][y] == turn + 1) {
+			if ((board[x][y] - 1) % 2 == turn) {
 				var tr = []
 				checkEats(tr, x, y)
 
@@ -101,9 +215,10 @@ function draw() {
 			rect(x * cellSize + boardX, y * cellSize + boardY, cellSize, cellSize)
 
 			var rv = board[x][y]
-			var v = Math.abs(board[x][y])
+			var v = Math.abs(board[x][y] - 1) % 2 + 1
+			var dm = Math.abs(board[x][y]) > 2
 
-			if (v > 0) {
+			if (board[x][y] != 0) {
 				var s = cellSize * 0.8
 
 				if (v - 1 == turn && ids[id] == lastId) {
@@ -118,16 +233,25 @@ function draw() {
 					}
 				}
 
-				stroke(v == 2 ? 255 : 0)
-				strokeWeight(3)
+				if (dm) {
+					stroke(255, 150, 0)
+				} else {
+					stroke(v == 2 ? 255 : 0)
+				}
+
+				strokeWeight(dm ? 6 : 3)
 				ellipse(x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5, s, s)
 				noStroke()
 
 				if (v - 1 == turn) {
 					textSize(32)
-					fill(turn == 0 ? 50 : 255)
 					textAlign(CENTER)
-					text(ids[id], x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5 + 12)
+					fill(turn == 0 ? 50 : 255)
+					
+					if (selfType == turn) {
+						text(ids[id], x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5 + 12)
+					}
+					
 					id++
 				}
 			}
@@ -157,10 +281,12 @@ function draw() {
 					ellipse(xxx * cellSize + boardX + cellSize * 0.5, yyy * cellSize + boardY + cellSize * 0.5, s, s)
 				}
 
-				textSize(32)
-				fill(240)
-				textAlign(CENTER)
-				text(letters[i], xxx * cellSize + boardX + cellSize * 0.5, yyy * cellSize + boardY + cellSize * 0.5 + 12)
+				if (selfType == turn) {
+					textSize(32)
+					fill(240)
+					textAlign(CENTER)
+					text(letters[i], xxx * cellSize + boardX + cellSize * 0.5, yyy * cellSize + boardY + cellSize * 0.5 + 12)
+				}
 			} else {
 				var s = cellSize * (must ? 0.8 : 0.5)
 
@@ -172,10 +298,12 @@ function draw() {
 
 				ellipse(x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5, s, s)
 
-				textSize(32)
-				fill(240)
-				textAlign(CENTER)
-				text(letters[i], x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5 + 12)
+				if (selfType == turn) {
+					textSize(32)
+					fill(240)
+					textAlign(CENTER)
+					text(letters[i], x * cellSize + boardX + cellSize * 0.5, y * cellSize + boardY + cellSize * 0.5 + 12)
+				}
 			}
 		}
 
@@ -196,19 +324,29 @@ function draw() {
 					}
 				}
 
+				var dm = Math.abs(board[xx][yy]) > 2
 				board[xx][yy] = 0
 
 				if (Array.isArray(move[0])) {
 					var s = `${xx + 1}:${7 - yy + 1}`
+					var l = move[0].length
 
-					for (var i = 0; i < move[0].length; i++) {
+					for (var i = 0; i < l; i++) {
 						s += ` -> ${move[0][i] + 1}:${7 - move[1][i] + 1}`
 					}
 
+					if (move[1][l - 1] == (turn == 0 ? 0 : 7)) {
+						dm = true
+					}
+
 					hist.push(s)
-					board[move[0][move[0].length - 1]][move[1][move[1].length - 1]] = turn + 1
+					board[move[0][l - 1]][move[1][l - 1]] = turn + 1 + (dm ? 2 : 0)
 				} else {
-					board[move[0]][move[1]] = turn + 1
+					if (move[1] == (turn == 0 ? 0 : 7)) {
+						dm = true
+					}
+
+					board[move[0]][move[1]] = turn + 1 + (dm ? 2 : 0)
 					hist.push(`${xx + 1}:${7 - yy + 1} -> ${move[0] + 1}:${7 - move[1] + 1}`)
 				}
 
@@ -218,10 +356,10 @@ function draw() {
 				updateHistory()
 
 				if (num[enemy] <= 0) {
+					won = turn
 					var s = "Player " + turn + " won!"
 					hist.push(s)
 					updateHistory()
-					alert(s)
 				}
 			}
 		}
@@ -229,7 +367,13 @@ function draw() {
 }
 
 function updateHistory() {
-	var str = ["<h3>History</h3>"]
+	var str = ["<h3>History</h3>", conn ? ("You play as " + (selfType == 0 ? "white<br/>" : "black<br/>")) : "Awaiting connection<br/>"]
+
+	if (won != -1) {
+		str.push("Press R to restart<br/>")
+	} else 	if (conn) {
+		str.push(turn == selfType ? "It's your turn<br/><br/>" : "It's your opponent's turn<br/><br/>")
+	}
 
 	for (var i = 0; i < hist.length; i++) {
 		str.push(hist[i])
@@ -242,10 +386,16 @@ function updateHistory() {
 function getTurns(x, y, tn) {
 	var turns = []
 	var dir = tn == 1 ? 1 : -1
+	var dm = Math.abs(board[x][y]) > 2
 
-	if (!important) {
-		addMoves(turns, dir, x, y, -1)
-		addMoves(turns, dir, x, y, 1)
+	if (!important || dm) {
+		addMoves(turns, dir, x, y, -1, dm)
+		addMoves(turns, dir, x, y, 1, dm)
+
+		if (dm) {
+			addMoves(turns, -dir, x, y, -1, dm)
+			addMoves(turns, -dir, x, y, 1, dm)
+		}
 	}
 
 	checkEats(turns, x, y)
@@ -297,18 +447,37 @@ function checkEats(turns, x, y, nx, ny, ext) {
 	checkEat(turns, -1, x, y, 1, nx, ny, ext)
 }
 
-function addMoves(turns, dir, x, y, j) {
+function addMoves(turns, dir, x, y, j, dm) {
 	var firstBrk = false
 
 	for (var i = 1; i < 8; i++) {
 		var turn = [ x + i * j, y + i * dir ]
 
-		if (!isValidTurn(turn[0], turn[1]) || isBusy(turn[0], turn[1])) {
+		if (!isValidTurn(turn[0], turn[1])) {
 			break
 		}
 
-		turns.push(turn)
-		break
+		if (isBusy(turn[0], turn[1])) {
+			if (dm) {
+				if (isBusyBySelf(turn[0], turn[1])) {
+					break
+				}
+
+				continue
+			}
+			
+			break
+		}
+	
+		if (!important) {
+			turns.push(turn)
+		}
+		
+		if (!dm) {
+			break
+		} else {
+			checkEats(turns, turn[0], turn[1], j, dir)
+		}
 	}
 }
 
@@ -325,9 +494,9 @@ function isBusy(x, y) {
 }
 
 function isBusyBySelf(x, y) {
-	return board[x][y] == turn + 1
+	return board[x][y] == turn + 1 || board[x][y] == turn + 3
 }
 
 function isBusyByEnemy(x, y) {
-	return board[x][y] == (turn == 0 ? 2 : 1)
+	return board[x][y] == (turn == 0 ? 2 : 1) || board[x][y] == (turn == 0 ? 4 : 3)
 }
