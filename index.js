@@ -195,8 +195,20 @@ function draw() {
 			if ((board[x][y] - 1) % 2 == turn) {
 				var tr = []
 				checkEats(tr, x, y)
+				var cnt = tr.length
 
-				if (tr.length > 0) {
+				if (cnt == 0) {
+					tr = getTurns(x, y, turn)
+
+					for (var j = 0; j < tr.length; j++) {
+						if (tr[j][2]) {
+							cnt = 1
+							break
+						}
+					}
+				}
+
+				if (cnt > 0) {
 					important = true
 					board[x][y] = -(board[x][y])
 				}
@@ -263,6 +275,10 @@ function draw() {
 
 		for (var i = 0; i < turns.length; i++) {
 			var [x, y, must, enx, eny] = turns[i]
+
+			if (!must && important) {
+				continue
+			}
 
 			if (Array.isArray(x)) {
 				var xxx, yyy
@@ -463,20 +479,34 @@ function addMoves(turns, dir, x, y, j, dm) {
 					break
 				}
 
+				if (firstBrk) {
+					break
+				}
+
+				firstBrk = true
 				continue
 			}
 			
 			break
 		}
 	
-		if (!important) {
+		if (firstBrk) {
+			turn[2] = true
+			turn[3] = x + (i - 1) * j
+			turn[4] = y + (i - 1) * dir
+		}
+
+		if (!important || turn[2]) {
 			turns.push(turn)
 		}
 		
-		if (!dm) {
+		if (firstBrk) {
+			// console.log("Check " + j + " " + -dir)
+			// checkEats(turns, turn[0], turn[1], j, -dir)
+		}
+
+		if (!dm || firstBrk) {
 			break
-		} else {
-			checkEats(turns, turn[0], turn[1], j, dir)
 		}
 	}
 }
@@ -494,9 +524,9 @@ function isBusy(x, y) {
 }
 
 function isBusyBySelf(x, y) {
-	return board[x][y] == turn + 1 || board[x][y] == turn + 3
+	return Math.abs(board[x][y]) == turn + 1 || Math.abs(board[x][y]) == turn + 3
 }
 
 function isBusyByEnemy(x, y) {
-	return board[x][y] == (turn == 0 ? 2 : 1) || board[x][y] == (turn == 0 ? 4 : 3)
+	return Math.abs(board[x][y]) == (turn == 0 ? 2 : 1) || Math.abs(board[x][y]) == (turn == 0 ? 4 : 3)
 }
