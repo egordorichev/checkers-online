@@ -58,7 +58,7 @@ function setup() {
 
 	updateHistory()
 
-  peer = new Peer(gt.i || "null", {host: 'localhost', port: 9000, path: '/'});
+  peer = new Peer(gt.i || "null");
 
 	peer.on('open', function(id) {
 		console.log('My peer ID is: ' + id);
@@ -93,7 +93,7 @@ function resetBoard() {
 
 		for (var y = 0; y < 8; y++) {
 			if ((x + y) % 2 == 0 && (y < 3 || y > 4)) {
-				board[x][y] = y > 4 ? 3 : 2 // fixme 1 : 2
+				board[x][y] = y > 4 ? 1 : 2
 			} else {
 				board[x][y] = 0
 			}
