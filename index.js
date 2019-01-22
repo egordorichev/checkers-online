@@ -9,10 +9,10 @@ var peer, conn
 var serve = false
 var won = -1
 var g
+var id
 
 function setup() {
 	historyDiv = document.getElementById("history")
-	updateHistory()
 
 	width = Math.max(
     document.documentElement["clientWidth"],
@@ -49,6 +49,14 @@ function setup() {
 	}
 
 	g = gt
+	id = gt.i
+
+	if (!id) {
+		window.location.href = `start.html`
+		return
+	}
+
+	updateHistory()
 
   peer = new Peer(gt.i || "null", {host: 'localhost', port: 9000, path: '/'});
 
@@ -385,7 +393,9 @@ function draw() {
 function updateHistory() {
 	var str = ["<h3>History</h3>", conn ? ("You play as " + (selfType == 0 ? "white<br/>" : "black<br/>")) : "Awaiting connection<br/>"]
 
-	if (won != -1) {
+	if (!conn) {
+		str.push(`Invite a friend with <a target='_blank' href='join.html?w=${id}${g.w ? "&b=1" : (g.b ? "&t=1" : "")}'>this link</a>`)
+	} else if (won != -1) {
 		str.push("Press R to restart<br/>")
 	} else 	if (conn) {
 		str.push(turn == selfType ? "It's your turn<br/><br/>" : "It's your opponent's turn<br/><br/>")
@@ -501,8 +511,7 @@ function addMoves(turns, dir, x, y, j, dm) {
 		}
 		
 		if (firstBrk) {
-			// console.log("Check " + j + " " + -dir)
-			// checkEats(turns, turn[0], turn[1], j, -dir)
+			checkEats(turns, turn[0], turn[1], j, -dir)
 		}
 
 		if (!dm || firstBrk) {

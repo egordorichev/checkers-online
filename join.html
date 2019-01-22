@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>Join</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" media="screen" href="main.css" />
+	<script src="main.js"></script>
+</head>
+<body>
+	<h3>Join <span id="who"></span> playing checkers</h3>
+	<input placeholder="username" id="username" autofocus></input>	
+	<button id="submit" onclick="go()">Join</button>
+</body>
+<script>
+var gt = {},
+args = location.search.substr(1).split(/&/);
+
+for (var i = 0; i < args.length; i++) {
+	var tmp = args[i].split(/=/);
+	
+	if (tmp[0] != "") {
+		gt[decodeURIComponent(tmp[0])] = decodeURIComponent(tmp.slice(1).join("").replace("+", " "));
+	}
+}
+
+document.getElementById("who").innerHTML = gt.w
+
+var input = document.getElementById("username")
+
+input.addEventListener("keyup", function(event) {
+	event.preventDefault()
+	
+  if (event.keyCode === 13) {
+    go()
+  }
+});
+
+function go() {
+	var name = document.getElementById("username").value
+	
+	if (!name || name == gt.w) {
+		return
+	}
+
+	window.location.href = `index.html?i=${name}&c=${gt.w}${gt.t ? "&w=1" : (gt.b ? "&b=1" : "")}`
+}
+</script>
+</html>
